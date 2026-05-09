@@ -234,7 +234,7 @@ else:
 
     # --- MODO ADMINISTRADOR (AL FINAL DE TODO) ---
     # Cambiá "rolando" por tu nombre de usuario real
-    if st.session_state.usuario.lower() == "rolando": 
+    if st.session_state.usuario.lower() == "soperutanos777": 
         with st.sidebar:
             st.divider()
             admin_mode = st.checkbox("🛠️ Modo Administrador")
