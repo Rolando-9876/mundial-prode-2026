@@ -212,7 +212,7 @@ else:
             with filas_pos[i % 3]:
                 # Inicializamos las estadísticas
                 equipos_grupo = set([p['l'] for p in partidos] + [p['v'] for p in partidos])
-                stats = {eq: {'PJ': 0, 'PG': 0, 'PE': 0, 'PP': 0, 'GF': 0, 'GC': 0, 'Pts': 0} for eq in equipos_grupo}
+                stats = {eq: {'Pts': 0, 'PJ': 0, 'PG': 0, 'PE': 0, 'PP': 0, 'GF': 0, 'GC': 0} for eq in equipos_grupo}
 
                 for p_fix in partidos:
                     nombre_partido = f"{p_fix['l']} vs {p_fix['v']}"
@@ -248,7 +248,7 @@ else:
 
                 # Crear DataFrame
                 df_t = pd.DataFrame.from_dict(stats, orient='index').reset_index()
-                df_t.columns = ['Equipo', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'Pts']
+                df_t.columns = ['Equipo', 'Pts', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC']
                 df_t['DG'] = df_t['GF'] - df_t['GC']
                 
                 # Ordenamos por Puntos, luego Diferencia de Gol, luego Goles a Favor
