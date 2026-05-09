@@ -199,23 +199,69 @@ else:
                 st.balloons()
 
     with tab2:
-        st.markdown("### 📊 Posiciones Proyectadas")
+        st.markdown("### 📊 Tablas de Posiciones Oficiales")
+        
+        # 1. Traemos los resultados reales de la base de datos
+        res_reales = conn.table("resultados_reales").select("*").execute().data
+        df_reales = pd.DataFrame(res_reales) if res_reales else pd.DataFrame()
+
         filas_pos = st.columns(3)
         for i, (grupo, partidos) in enumerate(fixture_completo.items()):
             with filas_pos[i % 3]:
-                puntos = {p['l']: 0 for p in partidos}
-                puntos.update({p['v']: 0 for p in partidos})
-                # Calculamos con los datos actuales de la pantalla
-                for pr in mis_pronosticos:
-                    if pr['Grupo'] == grupo:
-                        if pr['L'] > pr['V']: puntos[pr['Local']] += 3
-                        elif pr['V'] > pr['L']: puntos[pr['Visitante']] += 3
-                        else:
-                            puntos[pr['Local']] += 1
-                            puntos[pr['Visitante']] += 1
-                df_t = pd.DataFrame(list(puntos.items()), columns=['Equipo', 'Pts']).sort_values(by='Pts', ascending=False)
+                # Inicializamos las estadísticas para cada equipo del grupo
+                equipos_grupo = set([p['l'] for p in partidos] + [p['v'] for p in partidos])
+                stats = {eq: {'PJ': 0, 'PG': 0, 'PE': 0, 'PP': 0, 'GF': 0, 'GC': 0, 'Pts': 0} for eq in equipos_grupo}
+
+                # Procesamos solo si hay resultados cargados en la base de datos
+                for p_fix in partidos:
+                    nombre_partido = f"{p_fix['l']} vs {p_fix['v']}"
+                    
+                    if not df_reales.empty:
+                        # Buscamos si este partido ya tiene resultado real
+                        match = df_reales[df_reales['partidoid'] == nombre_partido] # Asegurate que el nombre de columna en SQL sea 'partido' o 'partidoid'
+                        # Nota: Si en tu SQL pusiste 'partido', cambiá partidoid por partido arriba
+                        
+                        # Si no encontrás la columna, podés usar esta forma más simple:
+                        match = [r for r in res_reales if r['partido'] == nombre_partido]
+                        
+                        if match:
+                            m = match[0]
+                            gl, gv = m['goles_l'], m['goles_v']
+                            l, v = p_fix['l'], p_fix['v']
+
+                            # Actualizar Goles
+                            stats[l]['GF'] += gl
+                            stats[l]['GC'] += gv
+                            stats[v]['GF'] += gv
+                            stats[v]['GC'] += gl
+                            stats[l]['PJ'] += 1
+                            stats[v]['PJ'] += 1
+
+                            # Actualizar Puntos y Resultados
+                            if gl > gv:
+                                stats[l]['Pts'] += 3
+                                stats[l]['PG'] += 1
+                                stats[v]['PP'] += 1
+                            elif gv > gl:
+                                stats[v]['Pts'] += 3
+                                stats[v]['PG'] += 1
+                                stats[l]['PP'] += 1
+                            else:
+                                stats[l]['Pts'] += 1
+                                stats[v]['Pts'] += 1
+                                stats[l]['PE'] += 1
+                                stats[v]['PE'] += 1
+
+                # Crear DataFrame y calcular Diferencia de Gol
+                df_t = pd.DataFrame.from_dict(stats, orient='index').reset_index()
+                df_t.columns = ['Equipo', 'PJ', 'PG', 'PE', 'PP', 'GF', 'GC', 'Pts']
+                df_t['DG'] = df_t['GF'] - df_t['GC']
+                
+                # Ordenar por Puntos, luego Diferencia de Gol, luego Goles a Favor
+                df_t = df_t.sort_values(by=['Pts', 'DG', 'GF'], ascending=False)
+
                 st.subheader(f"📍 {grupo}")
-                st.table(df_t)
+                st.dataframe(df_t, hide_index=True, use_container_width=True)
 
     with tab3:
         st.header("🏆 Ranking de Amigos")
