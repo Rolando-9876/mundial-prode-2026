@@ -5,7 +5,12 @@ from st_supabase_connection import SupabaseConnection
 st.set_page_config(page_title="Prode Mundial 2026", page_icon="⚽", layout="wide")
 
 # --- CONEXIÓN A BASE DE DATOS (SUPABASE) ---
-conn = st.connection("supabase", type=SupabaseConnection)
+conn = st.connection(
+    "supabase",
+    type=SupabaseConnection,
+    url="https://nbkurjpyrddrlohwissv.supabase.co",
+    key="sb_publishable_jrhXeor3kuLa6m5VqtEEtw_JbtTHD5G"
+)
 
 # --- LÓGICA DE SESIÓN ---
 if 'usuario' not in st.session_state:
