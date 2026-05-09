@@ -27,13 +27,16 @@ def login_registro():
         u_login = st.text_input("Usuario", key="u_login").lower().strip()
         p_login = st.text_input("Contraseña", type="password", key="p_login")
         if st.button("Entrar"):
-            # Buscamos al usuario en la tabla
-            res = conn.query("*", table="usuarios", ttl=0).eq("nombre", u_login).eq("password", p_login).execute()
-            if res.data:
-                st.session_state.usuario = u_login
-                st.rerun()
-            else:
-                st.error("Usuario o clave incorrectos")
+            # Cambiamos .query() por .table().select() que es más estable
+            try:
+                res = conn.table("usuarios").select("*").eq("nombre", u_login).eq("password", p_login).execute()
+                if res.data and len(res.data) > 0:
+                    st.session_state.usuario = u_login
+                    st.rerun()
+                else:
+                    st.error("Usuario o clave incorrectos")
+            except Exception as e:
+                st.error(f"Error de conexión: {e}")
 
     with col2:
         st.subheader("📝 Registrarse")
@@ -42,10 +45,11 @@ def login_registro():
         if st.button("Crear Cuenta"):
             if u_reg and p_reg:
                 try:
+                    # Insertar nuevo usuario
                     conn.table("usuarios").insert({"nombre": u_reg, "password": p_reg, "puntos": 0}).execute()
                     st.success("¡Cuenta creada con éxito! Ahora ya podés ingresar.")
-                except:
-                    st.error("El usuario ya existe o hubo un error.")
+                except Exception as e:
+                    st.error("El usuario ya existe o la base de datos no responde.")
             else:
                 st.warning("Completá todos los campos.")
 
@@ -217,7 +221,8 @@ else:
         st.header("🏆 Ranking de Amigos")
         st.info("Aquí verás quién va ganando a medida que carguemos los resultados reales.")
         try:
-            res_ranking = conn.query("nombre, puntos", table="usuarios", ttl=0).order("puntos", desc=True).execute()
+            # En vez de conn.query(...).execute()
+            res_ranking = conn.table("usuarios").select("nombre, puntos").order("puntos", desc=True).execute()
             if res_ranking.data:
                 df_ranking = pd.DataFrame(res_ranking.data)
                 df_ranking.columns = ["Usuario", "Puntos Totales"]
@@ -226,3 +231,57 @@ else:
                 st.write("Todavía no hay jugadores registrados.")
         except:
             st.error("Error al cargar el ranking.")
+
+    # --- MODO ADMINISTRADOR (AL FINAL DE TODO) ---
+    # Cambiá "rolando" por tu nombre de usuario real
+    if st.session_state.usuario == "rolando": 
+        with st.sidebar:
+            st.divider()
+            admin_mode = st.checkbox("🛠️ Modo Administrador")
+
+        if admin_mode:
+            st.header("⚙️ Panel de Control: Cargar Resultados Reales")
+            
+            with st.form("form_admin"):
+                grupo_sel = st.selectbox("Seleccionar Grupo para cargar resultados", list(fixture_completo.keys()))
+                partidos_grupo = fixture_completo[grupo_sel]
+                
+                resultados_data = []
+                for p in partidos_grupo:
+                    st.write(f"**{p['l']} vs {p['v']}**")
+                    col_a, col_b = st.columns(2)
+                    with col_a: res_l = st.number_input(f"Goles {p['l']}", 0, 15, key=f"admin_l_{p['l']}_{p['v']}")
+                    with col_b: res_v = st.number_input(f"Goles {p['v']}", 0, 15, key=f"admin_v_{p['l']}_{p['v']}")
+                    resultados_data.append({"partido": f"{p['l']} vs {p['v']}", "goles_l": res_l, "goles_v": res_v})
+                
+                if st.form_submit_button("📢 Publicar Resultados y Calcular Puntos"):
+                    # 1. Guardar resultados oficiales
+                    for r in resultados_data:
+                        conn.table("resultados_reales").upsert(r).execute()
+                    
+                    # 2. Traer todas las predicciones (ACÁ ESTÁ LA LÍNEA QUE BUSCÁBAMOS)
+                    preds = conn.table("predicciones").select("*").execute().data
+                    
+                    # 3. Calcular puntos
+                    puntos_por_usuario = {}
+                    for pr in preds:
+                        user = pr['usuario_nombre']
+                        if user not in puntos_por_usuario: puntos_por_usuario[user] = 0
+                        
+                        # Buscamos el resultado real guardado recién
+                        # Comparamos predicción vs realidad
+                        # (Si acertó exacto 3 pts, si acertó ganador 1 pt)
+                        real = conn.table("resultados_reales").select("*").eq("partido", pr['partido']).execute().data
+                        if real:
+                            rl, rv = real[0]['goles_l'], real[0]['goles_v']
+                            pl, pv = pr['goles_l'], pr['goles_v']
+                            if rl == pl and rv == pv: puntos_por_usuario[user] += 3
+                            elif (rl > rv and pl > pv) or (rl < rv and pl < pv) or (rl == rv and pl == pv):
+                                puntos_por_usuario[user] += 1
+                    
+                    # 4. Subir puntos actualizados a la tabla de usuarios
+                    for u, pts in puntos_por_usuario.items():
+                        conn.table("usuarios").update({"puntos": pts}).eq("nombre", u).execute()
+                    
+                    st.success("¡Resultados cargados y puntos repartidos!")
+                    st.balloons()        
