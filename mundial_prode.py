@@ -11,7 +11,9 @@ conn = st.connection(
     url="https://nbkurjpyrddrlohwissv.supabase.co",
     key="sb_publishable_jrhXeor3kuLa6m5VqtEEtw_JbtTHD5G"
 )
-
+st.title("🏆 Prode Mundial 2026")
+st.markdown("##### *¡Demostrá quién sabe más de fútbol!*")
+st.divider() # Esto pone una línea horizontal elegante
 # --- LÓGICA DE SESIÓN ---
 if 'usuario' not in st.session_state:
     st.session_state.usuario = None
