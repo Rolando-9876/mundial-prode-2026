@@ -298,6 +298,8 @@ else:
                     for r in resultados_data:
                         conn.table("resultados_reales").upsert(r).execute()
                     
+                    conn.table("usuarios").update({"puntos": 0}).neq("nombre", "admin_secreto").execute()
+                    
                     # 2. Traer todas las predicciones (ACÁ ESTÁ LA LÍNEA QUE BUSCÁBAMOS)
                     preds = conn.table("predicciones").select("*").execute().data
                     
